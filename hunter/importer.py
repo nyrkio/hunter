@@ -3,6 +3,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,6 +16,7 @@ from hunter.test_config import (
     CsvTestConfig,
     GraphiteTestConfig,
     HistoStatTestConfig,
+    NyrkioTestConfig,
     TestConfig,
 )
 from hunter.util import (
@@ -430,18 +432,108 @@ class HistoStatImporter(Importer):
                 metric_names.append(self.__metric_from_components(tag, tag_metric))
         return metric_names
 
+class NyrkioImporter(Importer):
+
+    def __init__(self):
+        self._data=None
+
+    @staticmethod
+    def _read_json_file(filename: str):
+        try:
+            with open(filename) as fp:
+                jsonstring="\n".join(fp.readlines())
+                return json.loads(jsonstring)
+        except FileNotFoundError:
+            raise DataImportError(f"Input file not found: {file}")
+
+    def inputfile(self, test_conf: NyrkioTestConfig):
+        if self._data is None:
+            self._data = self._read_json_file(test_conf.file)
+        return self._data
+
+
+    def fetch_data(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
+
+        if not isinstance(test_conf, NyrkioTestConfig):
+            raise ValueError("Expected NyrkioTestConfig")
+
+        if selector.branch:
+            raise ValueError("JSON tests don't support branching yet")
+
+        # TODO: refactor. THis is copy pasted from CSV importer
+        since_time = selector.since_time
+        until_time = selector.until_time
+        filename = Path(test_conf.file)
+
+        if since_time.timestamp() > until_time.timestamp():
+            raise DataImportError(
+                f"Invalid time range: ["
+                f"{format_timestamp(int(since_time.timestamp()))}, "
+                f"{format_timestamp(int(until_time.timestamp()))}]"
+            )
+
+        time = []
+        data = OrderedDict()
+        metrics = OrderedDict()
+        attributes = OrderedDict()
+
+        for name in self.fetch_all_metric_names(test_conf):
+            data[name] = []
+
+        attr_names = self.fetch_all_attribute_names(test_conf)
+        for name in attr_names:
+            attributes[name] = []
+
+
+        list_of_json_obj = self.inputfile(test_conf)
+        for result in list_of_json_obj:
+            time.append(result["timestamp"])
+            for metric in result["metrics"]:
+                data[metric["name"]].append(metric["value"])
+                metrics[metric["name"]] = Metric(1, 1.0)
+        for a in attr_names:
+            attributes[a] = [o["attributes"][a] for o in list_of_json_obj]
+
+
+        return Series(
+            test_conf.name,
+            branch=None,
+            time=time,
+            metrics=metrics,
+            data=data,
+            attributes=attributes,
+        )
+
+
+    def fetch_all_metric_names(self, test_conf: NyrkioTestConfig) -> List[str]:
+        metric_names = set()
+        list_of_json_obj = self.inputfile(test_conf)
+        for result in list_of_json_obj:
+            for metric in result["metrics"]:
+                metric_names.add(metric["name"])
+        return [m for m in metric_names]
+
+    def fetch_all_attribute_names(self, test_conf: NyrkioTestConfig) -> List[str]:
+        attr_names = set()
+        list_of_json_obj = self.inputfile(test_conf)
+        for result in list_of_json_obj:
+            for a in result["attributes"].keys():
+                attr_names.add(a)
+        return [m for m in attr_names]
 
 class Importers:
     __config: Config
     __csv_importer: Optional[CsvImporter]
     __graphite_importer: Optional[GraphiteImporter]
     __histostat_importer: Optional[HistoStatImporter]
+    __nyrkio_importer: Optional[NyrkioImporter]
 
     def __init__(self, config: Config):
         self.__config = config
         self.__csv_importer = None
         self.__graphite_importer = None
         self.__histostat_importer = None
+        self.__nyrkio_importer = None
 
     def csv_importer(self) -> CsvImporter:
         if self.__csv_importer is None:
@@ -458,6 +550,11 @@ class Importers:
             self.__histostat_importer = HistoStatImporter()
         return self.__histostat_importer
 
+    def nyrkio_importer(self) -> NyrkioImporter:
+        if self.__nyrkio_importer is None:
+            self.__nyrkio_importer = NyrkioImporter()
+        return self.__nyrkio_importer
+
     def get(self, test: TestConfig) -> Importer:
         if isinstance(test, CsvTestConfig):
             return self.csv_importer()
@@ -465,5 +562,7 @@ class Importers:
             return self.graphite_importer()
         elif isinstance(test, HistoStatTestConfig):
             return self.histostat_importer()
+        elif isinstance(test, NyrkioTestConfig):
+            return self.nyrkio_importer()
         else:
             raise ValueError(f"Unsupported test type {type(test)}")

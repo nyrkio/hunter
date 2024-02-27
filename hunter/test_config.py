@@ -135,11 +135,12 @@ def create_test_config(name: str, config: Dict) -> TestConfig:
         return create_graphite_test_config(name, config)
     elif test_type == "histostat":
         return create_histostat_test_config(name, config)
+    elif test_type == "json":
+        return create_nyrkio_test_config(name, config)
     elif test_type is None:
         raise TestConfigError(f"Test type not set for test {name}")
     else:
         raise TestConfigError(f"Unknown test type {test_type} for test {name}")
-
 
 def create_csv_test_config(test_name: str, test_info: Dict) -> CsvTestConfig:
     csv_options = CsvOptions()
@@ -181,7 +182,6 @@ def create_csv_test_config(test_name: str, test_info: Dict) -> CsvTestConfig:
         metrics=metrics,
         attributes=test_info.get("attributes"),
     )
-
 
 def create_graphite_test_config(name: str, test_info: Dict) -> GraphiteTestConfig:
     try:
@@ -226,3 +226,27 @@ def create_histostat_test_config(name: str, test_info: Dict) -> HistoStatTestCon
             f"Configuration referenced histostat file which does not exist: {file}"
         )
     return HistoStatTestConfig(name, file)
+
+@dataclass
+class NyrkioTestConfig(TestConfig):
+    name: str
+    file: str
+
+    # TODO: This should return the list defined in the config file hunter.yaml
+    def fully_qualified_metric_names(self):
+        from hunter.importer import NyrkioImporter
+
+        return NyrkioImporter().fetch_all_metric_names(self)
+
+
+def create_nyrkio_test_config(name: str, test_info: Dict) -> NyrkioTestConfig:
+    try:
+        file = test_info["file"]
+    except KeyError as e:
+        raise TestConfigError(f"Configuration key not found in test {name}: {e.args[0]}")
+    if not os.path.exists(file):
+        raise TestConfigError(
+            f"Coniguration file not found: {file}"
+        )
+    return NyrkioTestConfig(name, file)
+
