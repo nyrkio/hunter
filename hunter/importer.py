@@ -3,6 +3,7 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -15,6 +16,7 @@ from hunter.test_config import (
     CsvTestConfig,
     GraphiteTestConfig,
     HistoStatTestConfig,
+    JsonTestConfig,
     TestConfig,
 )
 from hunter.util import (
@@ -431,17 +433,134 @@ class HistoStatImporter(Importer):
         return metric_names
 
 
+class JsonImporter(Importer):
+    def __init__(self):
+        self._data = {}
+
+    @staticmethod
+    def _read_json_file(filename: str):
+        try:
+            with open(filename) as fp:
+                jsonstring = "\n".join(fp.readlines())
+                return json.loads(jsonstring)
+        except FileNotFoundError:
+            raise DataImportError(f"Input file not found: {filename}")
+
+    def inputfile(self, test_conf: JsonTestConfig):
+        if test_conf.file not in self._data:
+            self._data[test_conf.file] = self._read_json_file(test_conf.file)
+        return self._data[test_conf.file]
+
+    def fetch_data(self, test_conf: TestConfig, selector: DataSelector = DataSelector()) -> Series:
+
+        if not isinstance(test_conf, JsonTestConfig):
+            raise ValueError("Expected JsonTestConfig")
+
+        # TODO: refactor. THis is copy pasted from CSV importer
+        since_time = selector.since_time
+        until_time = selector.until_time
+        filename = Path(test_conf.file)
+
+        if since_time.timestamp() > until_time.timestamp():
+            raise DataImportError(
+                f"Invalid time range: ["
+                f"{format_timestamp(int(since_time.timestamp()))}, "
+                f"{format_timestamp(int(until_time.timestamp()))}]"
+            )
+
+        time = []
+        data = OrderedDict()
+        metrics = OrderedDict()
+        attributes = OrderedDict()
+
+        for name in self.fetch_all_metric_names(test_conf):
+            # Ignore metrics if selector.metrics is not None and name is not in selector.metrics
+            if selector.metrics is not None and name not in selector.metrics:
+                continue
+            data[name] = []
+
+        attr_names = self.fetch_all_attribute_names(test_conf)
+        for name in attr_names:
+            attributes[name] = []
+
+        # If the user specified a branch, only include results from that branch.
+        # Otherwise if the test config specifies a branch, only include results from that branch.
+        # Else include all results.
+        branch = None
+        if selector.branch:
+            branch = selector.branch
+        elif test_conf.base_branch:
+            branch = test_conf.base_branch
+
+        objs = self.inputfile(test_conf)
+        list_of_json_obj = []
+        for o in objs:
+            if branch and o["attributes"]["branch"] != branch:
+                continue
+            list_of_json_obj.append(o)
+
+        for result in list_of_json_obj:
+            time.append(result["timestamp"])
+            for metric in result["metrics"]:
+                # Skip metrics not in selector.metrics if selector.metrics is enabled
+                if metric["name"] not in data:
+                    continue
+
+                data[metric["name"]].append(metric["value"])
+                metrics[metric["name"]] = Metric(1, 1.0)
+        for a in attr_names:
+            attributes[a] = [o["attributes"][a] for o in list_of_json_obj]
+
+        # Leave last n points:
+        time = time[-selector.last_n_points :]
+        tmp = data
+        data = {}
+        for k, v in tmp.items():
+            data[k] = v[-selector.last_n_points :]
+        tmp = attributes
+        attributes = {}
+        for k, v in tmp.items():
+            attributes[k] = v[-selector.last_n_points :]
+
+        return Series(
+            test_conf.name,
+            branch=None,
+            time=time,
+            metrics=metrics,
+            data=data,
+            attributes=attributes,
+        )
+
+    def fetch_all_metric_names(self, test_conf: JsonTestConfig) -> List[str]:
+        metric_names = set()
+        list_of_json_obj = self.inputfile(test_conf)
+        for result in list_of_json_obj:
+            for metric in result["metrics"]:
+                metric_names.add(metric["name"])
+        return [m for m in metric_names]
+
+    def fetch_all_attribute_names(self, test_conf: JsonTestConfig) -> List[str]:
+        attr_names = set()
+        list_of_json_obj = self.inputfile(test_conf)
+        for result in list_of_json_obj:
+            for a in result["attributes"].keys():
+                attr_names.add(a)
+        return [m for m in attr_names]
+
+
 class Importers:
     __config: Config
     __csv_importer: Optional[CsvImporter]
     __graphite_importer: Optional[GraphiteImporter]
     __histostat_importer: Optional[HistoStatImporter]
+    __json_importer: Optional[JsonImporter]
 
     def __init__(self, config: Config):
         self.__config = config
         self.__csv_importer = None
         self.__graphite_importer = None
         self.__histostat_importer = None
+        self.__json_importer = None
 
     def csv_importer(self) -> CsvImporter:
         if self.__csv_importer is None:
@@ -458,6 +577,11 @@ class Importers:
             self.__histostat_importer = HistoStatImporter()
         return self.__histostat_importer
 
+    def json_importer(self) -> JsonImporter:
+        if self.__json_importer is None:
+            self.__json_importer = JsonImporter()
+        return self.__json_importer
+
     def get(self, test: TestConfig) -> Importer:
         if isinstance(test, CsvTestConfig):
             return self.csv_importer()
@@ -465,5 +589,7 @@ class Importers:
             return self.graphite_importer()
         elif isinstance(test, HistoStatTestConfig):
             return self.histostat_importer()
+        elif isinstance(test, JsonTestConfig):
+            return self.json_importer()
         else:
             raise ValueError(f"Unsupported test type {type(test)}")
