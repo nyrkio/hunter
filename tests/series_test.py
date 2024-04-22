@@ -1,5 +1,6 @@
 import time
 from random import random
+import pytest
 
 from hunter.series import AnalysisOptions, Metric, Series, compare
 
@@ -51,6 +52,26 @@ def test_change_point_min_magnitude():
                 change.magnitude() >= options.min_magnitude
             ), f"All change points must have magnitude greater than {options.min_magnitude}"
 
+# Divide by zero is only a RuntimeWarning, but for testing we want to make sure it's a failure
+@pytest.mark.filterwarnings("error")
+def test_div_by_zero():
+    series_1 = [0.0, 0.0, 0.0, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0)},
+        data={"series1": series_1},
+        attributes={},
+    )
+
+    analyzed_series = test.analyze()
+    change_points = analyzed_series.change_points_by_time
+    cpjson = analyzed_series.to_json()
+    print(cpjson)
+    assert len(change_points) == 2
+    assert change_points[0].index == 3
 
 def test_change_point_detection_performance():
     timestamps = range(0, 90)  # 3 months of data
