@@ -85,7 +85,7 @@ class Report:
     def __format_json(self, test_name: str) -> str:
         import json
 
-        return json.dumps({test_name: [cpg.to_json() for cpg in self.__change_points]})
+        return json.dumps({test_name: [cpg.to_json(rounded=True) for cpg in self.__change_points]})
 
     def __format_regressions_only(self, test_name: str) -> str:
         output = []
