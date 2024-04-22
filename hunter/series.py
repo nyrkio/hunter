@@ -28,6 +28,14 @@ class AnalysisOptions:
         self.min_magnitude = 0.0
         self.orig_edivisive = False
 
+    def to_json(self):
+        return {
+            "window_len": self.window_len,
+            "max_pvalue": self.max_pvalue,
+            "min_magnitude": self.min_magnitude,
+            "orig_edivisive": self.orig_edivisive
+        }
+
 
 @dataclass
 class Metric:
@@ -40,6 +48,12 @@ class Metric:
         self.scale = scale
         self.unit = ""
 
+    def to_json(self):
+        return {
+            "direction": self.direction,
+            "scale": self.scale,
+            "unit": self.unit
+        }
 
 @dataclass
 class ChangePoint:
@@ -77,13 +91,22 @@ class ChangePoint:
     def to_json(self):
         return {
             "metric": self.metric,
-            "forward_change_percent": f"{self.forward_change_percent():.0f}",
-            "magnitude": f"{self.magnitude():-0f}",
-            "mean_before": f"{self.mean_before():-0f}",
-            "stddev_before": f"{self.stddev_before():-0f}",
-            "mean_after": f"{self.mean_after():-0f}",
-            "stddev_after": f"{self.stddev_after():-0f}",
-            "pvalue": f"{self.pvalue():-0f}",
+            "index": int(self.index),
+            "time": self.time,
+            "forward_change_percent": self.forward_change_percent(),
+            "magnitude": self.magnitude(),
+            "mean_before": self.mean_before(),
+            "stddev_before": self.stddev_before(),
+            "mean_after": self.mean_after(),
+            "stddev_after": self.stddev_after(),
+            "pvalue": self.pvalue(),
+            # "forward_change_percent": f"{self.forward_change_percent():.0f}",
+            # "magnitude": f"{self.magnitude():-0f}",
+            # "mean_before": f"{self.mean_before():-0f}",
+            # "stddev_before": f"{self.stddev_before():-0f}",
+            # "mean_after": f"{self.mean_after():-0f}",
+            # "stddev_after": f"{self.stddev_after():-0f}",
+            # "pvalue": f"{self.pvalue():-0f}",
         }
 
 
@@ -170,10 +193,10 @@ class AnalyzedSeries:
     change_points: Dict[str, List[ChangePoint]]
     change_points_by_time: List[ChangePointGroup]
 
-    def __init__(self, series: Series, options: AnalysisOptions):
+    def __init__(self, series: Series, options: AnalysisOptions, change_points: Dict[str, ChangePoint] = None):
         self.__series = series
         self.options = options
-        self.change_points = self.__compute_change_points(series, options)
+        self.change_points = change_points if change_points is not None else self.__compute_change_points(series, options)
         self.change_points_by_time = self.__group_change_points_by_time(series, self.change_points)
 
     @staticmethod
@@ -262,10 +285,10 @@ class AnalyzedSeries:
         return len(self.__series.time)
 
     def time(self) -> List[int]:
-        return self.__series.time
+        return [int(t) for t in self.__series.time]
 
     def data(self, metric: str) -> List[float]:
-        return self.__series.data[metric]
+        return [float(d) for d in self.__series.data[metric]]
 
     def attributes(self) -> Iterable[str]:
         return self.__series.attributes.keys()
@@ -281,6 +304,64 @@ class AnalyzedSeries:
 
     def metric(self, name: str) -> Metric:
         return self.__series.metrics[name]
+
+    def to_json(self):
+        change_points_json = {}
+        for metric, cps in self.change_points.items():
+            change_points_json[metric] = [cp.to_json() for cp in cps]
+
+        data_json = {}
+        for metric, datapoints in self.__series.data.items():
+            data_json[metric] = [float(d) if d is not None else None for d in datapoints]
+
+        return {
+            "test_name": self.test_name(),
+            "time": self.time(),
+            "branch_name": self.branch_name(),
+            "options": self.options.to_json(),
+            "metrics": self.__series.metrics,
+            "attributes": self.__series.attributes,
+            "data": self.__series.data,
+            "change_points": change_points_json
+        }
+
+    @classmethod
+    def from_json(cls, analyzed_json):
+        new_metrics = {}
+
+        for metric_name, unit in analyzed_json["metrics"].items():
+            new_metrics[metric_name]=Metric(None,None,unit)
+
+        new_series = Series(
+            analyzed_json["test_name"],
+            analyzed_json["branch_name"],
+            analyzed_json["time"],
+            new_metrics,
+            analyzed_json["data"],
+            analyzed_json["attributes"]
+        )
+
+        new_options = AnalysisOptions()
+        new_options.window_len = analyzed_json["options"]["window_len"]
+        new_options.max_pvalue = analyzed_json["options"]["max_pvalue"]
+        new_options.min_magnitude = analyzed_json["options"]["min_magnitude"]
+        new_options.orig_edivisive = analyzed_json["options"]["orig_edivisive"]
+
+        new_change_points = {}
+        for metric, change_points in analyzed_json["change_points"].items():
+            new_list=list()
+            for cp in change_points:
+                stat = ComparativeStats(cp["mean_before"], cp["mean_after"], cp["stddev_before"],
+                                        cp["stddev_after"], cp["pvalue"])
+                new_list.append(
+                    ChangePoint(
+                        index=cp["index"], time=cp["time"], metric=cp["metric"], stats=stat
+                    )
+                )
+            new_change_points[metric] = new_list
+
+        return cls(new_series, new_options, new_change_points)
+
 
 
 @dataclass
