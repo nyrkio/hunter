@@ -88,26 +88,34 @@ class ChangePoint:
     def pvalue(self):
         return self.stats.pvalue
 
-    def to_json(self):
-        return {
-            "metric": self.metric,
-            "index": int(self.index),
-            "time": self.time,
-            "forward_change_percent": self.forward_change_percent(),
-            "magnitude": self.magnitude(),
-            "mean_before": self.mean_before(),
-            "stddev_before": self.stddev_before(),
-            "mean_after": self.mean_after(),
-            "stddev_after": self.stddev_after(),
-            "pvalue": self.pvalue(),
-            # "forward_change_percent": f"{self.forward_change_percent():.0f}",
-            # "magnitude": f"{self.magnitude():-0f}",
-            # "mean_before": f"{self.mean_before():-0f}",
-            # "stddev_before": f"{self.stddev_before():-0f}",
-            # "mean_after": f"{self.mean_after():-0f}",
-            # "stddev_after": f"{self.stddev_after():-0f}",
-            # "pvalue": f"{self.pvalue():-0f}",
-        }
+    def to_json(self, rounded=True):
+            if rounded:
+                return {
+                    "metric": self.metric,
+                    "index": int(self.index),
+                    "time": self.time,
+                    "forward_change_percent": f"{self.forward_change_percent():.0f}",
+                    "magnitude": f"{self.magnitude():-0f}",
+                    "mean_before": f"{self.mean_before():-0f}",
+                    "stddev_before": f"{self.stddev_before():-0f}",
+                    "mean_after": f"{self.mean_after():-0f}",
+                    "stddev_after": f"{self.stddev_after():-0f}",
+                    "pvalue": f"{self.pvalue():-0f}",
+                }
+
+            else:
+                return {
+                    "metric": self.metric,
+                    "index": int(self.index),
+                    "time": self.time,
+                    "forward_change_percent": self.forward_change_percent(),
+                    "magnitude": self.magnitude(),
+                    "mean_before": self.mean_before(),
+                    "stddev_before": self.stddev_before(),
+                    "mean_after": self.mean_after(),
+                    "stddev_after": self.stddev_after(),
+                    "pvalue": self.pvalue(),
+                }
 
 
 @dataclass
@@ -122,7 +130,7 @@ class ChangePointGroup:
     changes: List[ChangePoint]
 
     def to_json(self):
-        return {"time": self.time, "attributes": self.attributes, "changes": [cp.to_json() for cp in self.changes]}
+        return {"time": self.time, "attributes": self.attributes, "changes": [cp.to_json(rounded=False) for cp in self.changes]}
 
 
 class Series:
@@ -308,7 +316,7 @@ class AnalyzedSeries:
     def to_json(self):
         change_points_json = {}
         for metric, cps in self.change_points.items():
-            change_points_json[metric] = [cp.to_json() for cp in cps]
+            change_points_json[metric] = [cp.to_json(rounded=False) for cp in cps]
 
         data_json = {}
         for metric, datapoints in self.__series.data.items():
