@@ -25,12 +25,18 @@ class ComparativeStats:
     std_2: float
     pvalue: float
 
-    def forward_rel_change(self):
+    def forward_rel_change(self, value_if_nan=0):
         """Relative change from left to right"""
+        if self.mean_1 == 0:
+            return value_if_nan
+
         return self.mean_2 / self.mean_1 - 1.0
 
-    def backward_rel_change(self):
+    def backward_rel_change(self, value_if_nan=0):
         """Relative change from right to left"""
+        if self.mean_2 == 0:
+            return value_if_nan
+
         return self.mean_1 / self.mean_2 - 1.0
 
     def forward_change_percent(self) -> float:
