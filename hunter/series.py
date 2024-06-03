@@ -129,8 +129,8 @@ class ChangePointGroup:
     prev_attributes: Dict[str, str]
     changes: List[ChangePoint]
 
-    def to_json(self):
-        return {"time": self.time, "attributes": self.attributes, "changes": [cp.to_json(rounded=False) for cp in self.changes]}
+    def to_json(self, rounded=False):
+        return {"time": self.time, "attributes": self.attributes, "changes": [cp.to_json(rounded=rounded) for cp in self.changes]}
 
 
 class Series:
