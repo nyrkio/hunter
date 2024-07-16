@@ -1,8 +1,8 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import groupby
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Any
 
 import numpy as np
 
@@ -204,10 +204,12 @@ class AnalyzedSeries:
     options: AnalysisOptions
     change_points: Dict[str, List[ChangePoint]]
     change_points_by_time: List[ChangePointGroup]
+    change_points_timestamp: Any
 
     def __init__(self, series: Series, options: AnalysisOptions, change_points: Dict[str, ChangePoint] = None):
         self.__series = series
         self.options = options
+        self.change_points_timestamp = datetime.now(tz=timezone.utc)
         self.change_points = change_points if change_points is not None else self.__compute_change_points(series, options)
         self.change_points_by_time = self.__group_change_points_by_time(series, self.change_points)
 
@@ -329,6 +331,7 @@ class AnalyzedSeries:
         return {
             "test_name": self.test_name(),
             "time": self.time(),
+            "change_points_timestamp": self.change_points_timestamp,
             "branch_name": self.branch_name(),
             "options": self.options.to_json(),
             "metrics": self.__series.metrics,
@@ -372,7 +375,11 @@ class AnalyzedSeries:
                 )
             new_change_points[metric] = new_list
 
-        return cls(new_series, new_options, new_change_points)
+
+        analyzed_series = cls(new_series, new_options, new_change_points)
+        if "change_points_timestamp" in analyzed_json.keys():
+            analyzed_series.change_points_timestamp = analyzed_json["change_points_timestamp"]
+        return analyzed_series
 
 
 
