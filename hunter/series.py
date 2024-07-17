@@ -371,7 +371,7 @@ class AnalyzedSeries:
                 )
             new_change_points[metric] = new_list
 
-        if "change_points_timestamp" in analyzed_json:
+        if "change_points_timestamp" in analyzed_json.keys():
             new_change_points.change_points_timestamp = analyzed_json["change_points_timestamp"]
 
         return cls(new_series, new_options, new_change_points)
