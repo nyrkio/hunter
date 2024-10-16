@@ -23,6 +23,7 @@ pg8000 = "^1.31.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"
+pytest-benchmark = "^4.0.0"
 pytz = "2021.1"
 tox = "^3.25.0"
 flake8 = "^4.0.1"
