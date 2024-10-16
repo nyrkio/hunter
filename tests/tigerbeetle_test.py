@@ -46,6 +46,30 @@ def test_tb_defaults_p05(benchmark):
     indexes = [c.index for c in cps]
     assert indexes == [16, 71]
 
+def test_tb_defaults_p1(benchmark):
+    series = _get_series()
+    cps = compute_change_points(series, window_len=30, max_pvalue=0.1)
+    indexes = [c.index for c in cps]
+    assert indexes == [16, 71]
+
+def test_tb_defaults_p2(benchmark):
+    series = _get_series()
+    cps = compute_change_points(series, window_len=30, max_pvalue=0.2)
+    indexes = [c.index for c in cps]
+    assert indexes == [16, 71]
+
+
+def test_tb_magnitude0_p2(benchmark):
+    series = _get_series()
+    cps = compute_change_points(series, window_len=30, max_pvalue=0.2, min_magnitude=0.0)
+    indexes = [c.index for c in cps]
+    assert indexes == [16, 27, 29, 56, 58, 60, 61, 69, 71, 82, 83, 91, 95, 108, 114, 116, 117, 131, 138, 142, 148, 165, 167, 178, 187, 189, 190, 192, 206, 212, 213, 220, 241, 243, 244, 246, 247, 249, 260, 266, 268, 272, 274, 275, 278, 282, 284, 288, 295, 297, 311, 314, 325, 330, 347, 351]
+
+def test_tb_magnitude0_p1(benchmark):
+    series = _get_series()
+    cps = compute_change_points(series, window_len=30, max_pvalue=0.1, min_magnitude=0.0)
+    indexes = [c.index for c in cps]
+    assert indexes == [16, 27, 29, 56, 58, 61, 71, 82, 95, 113, 116, 117, 131, 138, 142, 148, 157, 165, 167, 178, 187, 189, 192, 206, 212, 213, 220, 246, 247, 249, 260, 266, 268, 272, 278, 282, 311, 312, 325, 330, 347, 351]
 
 def test_tb_magnitude0_p01(benchmark):
     series = _get_series()
