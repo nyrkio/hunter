@@ -69,7 +69,6 @@ def test_div_by_zero():
     analyzed_series = test.analyze()
     change_points = analyzed_series.change_points_by_time
     cpjson = analyzed_series.to_json()
-    print(cpjson)
     assert len(change_points) == 2
     assert change_points[0].index == 3
 
@@ -172,3 +171,117 @@ def test_compare_metrics_order():
     ).analyze()
     cmp = compare(test, None, test, None)
     assert list(cmp.stats.keys()) == ["m1", "m2", "m3", "m4", "m5"]
+
+
+def test_incremental_hunter():
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
+
+    analyzed_series = test.analyze()
+    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    change_points = analyzed_series.change_points
+    assert [c.index for c in change_points["series1"]] == [6]
+    assert [c.index for c in change_points["series2"]] == [4]
+
+    analyzed_series.append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    change_points = analyzed_series.change_points
+    assert [c.index for c in change_points["series1"]] == [6]
+    assert [c.index for c in change_points["series2"]] == [4]
+
+    analyzed_series.append(time=[len(time)], new_data={"series2":[33.33, 46.46]}, attributes= {})
+    change_points = analyzed_series.change_points
+    assert [c.index for c in change_points["series1"]] == [6]
+    assert [c.index for c in change_points["series2"]] == [4,12]
+
+def test_validate():
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
+    test_fail = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
+
+    analyzed_series_fail = test_fail.analyze()
+    analyzed_series_fail.change_points = None
+    err = analyzed_series_fail._validate_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    assert isinstance(err, RuntimeError)
+
+    analyzed_series = test.analyze()
+    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    change_points = analyzed_series.change_points
+
+    err = analyzed_series._validate_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    assert err is None
+
+    err = analyzed_series._validate_append(time=[5], new_data={"series1":[0.51]}, attributes= {})
+    assert isinstance(err, ValueError)
+
+    err = analyzed_series._validate_append(time=[len(time)], new_data={}, attributes= {})
+    assert isinstance(err, ValueError)
+
+def test_can_append():
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
+
+    analyzed_series = test.analyze()
+    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    change_points = analyzed_series.change_points
+
+    can = analyzed_series.can_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    assert can == True
+
+    can = analyzed_series.can_append(time=[5], new_data={"series1":[0.51]}, attributes= {})
+    assert can == False
+
+def test_orig_edivisive():
+    series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
+    series_2 = [2.02, 2.03, 2.01, 2.04, 1.82, 1.85, 1.79, 1.81, 1.80, 1.76, 1.78]
+    time = list(range(len(series_1)))
+    test = Series(
+        "test",
+        branch=None,
+        time=time,
+        metrics={"series1": Metric(1, 1.0), "series2": Metric(1, 1.0)},
+        data={"series1": series_1, "series2": series_2},
+        attributes={},
+    )
+
+    options = AnalysisOptions()
+    options.orig_edivisive = True
+    options.max_pvalue = 0.01
+
+    change_points = test.analyze(options=options).change_points_by_time
+    assert len(change_points) == 2
+    assert change_points[0].index == 4
+    assert change_points[1].index == 6
