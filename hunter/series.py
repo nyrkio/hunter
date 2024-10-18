@@ -206,7 +206,15 @@ class AnalyzedSeries:
         self.__series = series
         self.options = options
         self.change_points_timestamp = datetime.now(tz=timezone.utc)
-        self.change_points = change_points if change_points is not None else self.__compute_change_points(series, options)
+        self.change_points = None
+        if change_points is not None:
+            self.change_points = change_points
+        else:
+            cp, weak_cps = self.__compute_change_points(series, options)
+            self.change_points = cp
+
+        self.weak_change_points = weak_cps
+
         self.change_points_by_time = self.__group_change_points_by_time(series, self.change_points)
 
     @staticmethod
@@ -214,6 +222,7 @@ class AnalyzedSeries:
         series: Series, options: AnalysisOptions
     ) -> Dict[str, List[ChangePoint]]:
         result = {}
+        weak_change_points = {}
         for metric in series.data.keys():
             values = series.data[metric].copy()
             fill_missing(values)
@@ -223,7 +232,7 @@ class AnalyzedSeries:
                     max_pvalue=options.max_pvalue,
                 )
             else:
-                change_points = compute_change_points(
+                change_points, weak_cps = compute_change_points(
                     values,
                     window_len=options.window_len,
                     max_pvalue=options.max_pvalue,
@@ -236,7 +245,16 @@ class AnalyzedSeries:
                         index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
                     )
                 )
-        return result
+            weak_change_points[metric] = []
+            for c in weak_cps:
+                weak_change_points[metric].append(
+                    ChangePoint(
+                        index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                    )
+                )
+        # If you got an exception and are wondering about the next row...
+        # weak_cps is an optimization which you can ignore
+        return result, weak_change_points
 
     @staticmethod
     def __group_change_points_by_time(
@@ -285,6 +303,91 @@ class AnalyzedSeries:
 
         return begin, end
 
+    def can_append(self, time, new_data, attributes):
+        return self._validate_append(time, new_data, attributes) is None
+
+    def _validate_append(self, time, new_data, attributes):
+        if not self.change_points:
+            return RuntimeError("You must use __compute_change_points() once first.")
+        if not isinstance(time, list):
+            return ValueError("time argument must be an array.")
+        if not isinstance(new_data, dict):
+            return ValueError("new_data argument must be a dict with metrics as key.")
+        if len(new_data.keys()) == 0 or len([v for v in [l for l in new_data.values()]]) == 0:
+            return ValueError("new_data argument doesn't contain any data")
+        if not isinstance(attributes, dict):
+            return ValueError("attributes must be a dict.")
+
+        max_time = max(self.__series.time)
+        for t in time:
+            if t <= max_time:
+                return ValueError("time must be monotonously increasing if you use append() time={}".format(time))
+
+        return None
+
+    def append(self, time, new_data, attributes):
+        """
+        Append new data points to the underlying series and recompute change points.
+
+        The recompute is done efficiently, only the tail of the Series() is recomputed.
+
+        Parameters are the same as for the constructor. Just the metrics are missing, it is required
+        to have the same metrics or a subset in the new data,
+        """
+        err = self._validate_append(time, new_data, attributes)
+        if err is not None:
+            raise err
+
+        for t in time:
+            self.__series.time.append(t)
+        for m in self.__series.metrics.keys():
+            if m in new_data.keys():
+                self.__series.data[m] += new_data[m]
+        for k,v in attributes.items():
+            self.__series.attributes[k].append(v)
+
+        result = {}
+        weak_change_points = {}
+
+        for metric in self.__series.data.keys():
+            if metric not in new_data:
+                weak_change_points[metric] = self.weak_change_points[metric]
+                continue
+
+            change_points, weak_cps = compute_change_points(
+                self.__series.data[metric],
+                window_len=self.options.window_len,
+                max_pvalue=self.options.max_pvalue,
+                min_magnitude=self.options.min_magnitude,
+                new_data=len(new_data[metric]),
+                old_weak_cp=self.weak_change_points.get(metric,[])
+            )
+            result[metric] = []
+            for c in change_points:
+                result[metric].append(
+                    ChangePoint(
+                        index=c.index, time=self.__series.time[c.index], metric=metric, stats=c.stats
+                    )
+                )
+            weak_change_points[metric] = []
+            for c in weak_cps:
+                weak_change_points[metric].append(
+                    ChangePoint(
+                        index=c.index, time=self.__series.time[c.index], metric=metric, stats=c.stats
+                    )
+                )
+            fill_missing(self.__series.data[metric])
+
+        # If some metrics didn't participate in this round, we still keep them, but update the ones
+        # We did recompute
+        for metric in result.keys():
+            self.change_points[metric] = result[metric]
+        for metric in weak_change_points.keys():
+            self.weak_change_points[metric] = weak_change_points[metric]
+        self.change_points_by_time = self.__group_change_points_by_time(self.__series, self.change_points)
+        return result, weak_change_points
+
+
     def test_name(self) -> str:
         return self.__series.test_name
 
@@ -320,6 +423,10 @@ class AnalyzedSeries:
         for metric, cps in self.change_points.items():
             change_points_json[metric] = [cp.to_json(rounded=False) for cp in cps]
 
+        weak_change_points_json = {}
+        for metric, cps in self.weak_change_points.items():
+            weak_change_points_json[metric] = [cp.to_json(rounded=False) for cp in cps]
+
         data_json = {}
         for metric, datapoints in self.__series.data.items():
             data_json[metric] = [float(d) if d is not None else None for d in datapoints]
@@ -333,7 +440,8 @@ class AnalyzedSeries:
             "metrics": self.__series.metrics,
             "attributes": self.__series.attributes,
             "data": self.__series.data,
-            "change_points": change_points_json
+            "change_points": change_points_json,
+            "weak_change_points": weak_change_points_json
         }
 
     @classmethod
@@ -371,8 +479,23 @@ class AnalyzedSeries:
                 )
             new_change_points[metric] = new_list
 
+        new_weak_change_points = {}
+        for metric, change_points in analyzed_json.get("weak_change_points",{}).items():
+            new_list=list()
+            for cp in change_points:
+                stat = ComparativeStats(cp["mean_before"], cp["mean_after"], cp["stddev_before"],
+                                        cp["stddev_after"], cp["pvalue"])
+                new_list.append(
+                    ChangePoint(
+                        index=cp["index"], time=cp["time"], metric=cp["metric"], stats=stat
+                    )
+                )
+            new_weak_change_points[metric] = new_list
+
 
         analyzed_series = cls(new_series, new_options, new_change_points)
+        analyzed_series.weak_change_points = new_weak_change_points
+
         if "change_points_timestamp" in analyzed_json.keys():
             analyzed_series.change_points_timestamp = analyzed_json["change_points_timestamp"]
         return analyzed_series

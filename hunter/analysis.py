@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from typing import Iterable, List, Reversible
 
@@ -186,7 +187,6 @@ def merge(
         :param max_pvalue: maximum accepted pvalue
         :param min_magnitude: minimum accepted relative change
     """
-
     tester = TTestSignificanceTester(max_pvalue)
     while change_points:
 
@@ -220,7 +220,8 @@ def merge(
     return change_points
 
 
-def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001) -> List[ChangePoint]:
+def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001,
+          new_points=None, old_cp=None) -> List[ChangePoint]:
     """
     Finds change points by splitting the series top-down.
 
@@ -243,20 +244,40 @@ def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001) -> 
     start = 0
     step = int(window_len / 2)
     indexes = []
+    # N new_points are appended to the end of series. Typically N=1.
+    # old_cp are the weak change points from before new points were added.
+    # We now just compute e-e_divisive for the tail of the series, beginning at
+    # max(old_cp[-1], a step that is over 2 window_len from the end)
+    if new_points is not None and old_cp is not None:
+        indexes = [c.index for c in old_cp]
+        steps_needed = new_points/window_len + 4
+        max_start = len(series) - steps_needed*window_len
+        for c in old_cp:
+            if c.index < max_start:
+                start = c.index
+        for s in range(0,len(series),step):
+            if s < max_start and start < s:
+                start = s
+
     tester = TTestSignificanceTester(max_pvalue)
     while start < len(series):
         end = min(start + window_len, len(series))
         calculator = cext_calculator
+
         algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
         pts = algo.get_change_points(series[start:end])
         new_indexes = [p.index + start for p in pts]
         new_indexes.sort()
         last_new_change_point_index = next(iter(new_indexes[-1:]), 0)
         start = max(last_new_change_point_index, start + step)
-        indexes += new_indexes
+        # incremental Hunter can duplicate an old cp
+        for i in new_indexes:
+            if i not in indexes:
+                indexes += [i]
 
     window_endpoints = [0] + indexes + [len(series)]
     return [tester.change_point(i, series, window_endpoints) for i in indexes]
+
 
 
 def compute_change_points_orig(series: np.array, max_pvalue: float = 0.001) -> List[ChangePoint]:
@@ -270,8 +291,9 @@ def compute_change_points_orig(series: np.array, max_pvalue: float = 0.001) -> L
 
 
 def compute_change_points(
-    series: np.array, window_len: int = 50, max_pvalue: float = 0.001, min_magnitude: float = 0.0
+    series: np.array, window_len: int = 50, max_pvalue: float = 0.001, min_magnitude: float = 0.0,
+    new_data=None, old_weak_cp=None
 ) -> List[ChangePoint]:
     first_pass_pvalue = max_pvalue * 10 if max_pvalue < 0.05 else (max_pvalue * 2 if max_pvalue < 0.5 else max_pvalue)
-    weak_change_points = split(series, window_len, first_pass_pvalue)
-    return merge(weak_change_points, series, max_pvalue, min_magnitude)
+    weak_change_points = split(series, window_len, first_pass_pvalue, new_points=new_data, old_cp=old_weak_cp)
+    return merge(weak_change_points, series, max_pvalue, min_magnitude), weak_change_points
