@@ -20,6 +20,7 @@ slack-sdk = "^3.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"
+pytest-benchmark = "^4.0.0"
 pytz = "2021.1"
 tox = "^3.25.0"
 black = "^22.3.0"

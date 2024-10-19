@@ -39,7 +39,8 @@ def test_single_series():
         0.50,
         0.49,
     ]
-    indexes = [c.index for c in compute_change_points(series, window_len=10, max_pvalue=0.0001)]
+    cps,_=compute_change_points(series, window_len=10, max_pvalue=0.0001)
+    indexes = [c.index for c in cps]
     assert indexes == [10]
 
 
