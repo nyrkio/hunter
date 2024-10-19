@@ -285,9 +285,7 @@ def compute_change_points_orig(series: np.array, max_pvalue: float = 0.001) -> L
     tester = QHatPermutationsSignificanceTester(calculator, pvalue=max_pvalue, permutations=100)
     algo = EDivisive(seed=None, calculator=calculator, significance_tester=tester)
     pts = algo.get_change_points(series)
-    indexes = [p.index for p in pts]
-    window_endpoints = [0] + indexes + [len(series)]
-    return [tester.change_point(i, series, window_endpoints) for i in indexes]
+    return pts, None
 
 
 def compute_change_points(

@@ -224,13 +224,16 @@ class AnalyzedSeries:
         result = {}
         weak_change_points = {}
         for metric in series.data.keys():
+            result[metric] = []
+            weak_change_points[metric] = []
             values = series.data[metric].copy()
             fill_missing(values)
             if options.orig_edivisive:
-                change_points = compute_change_points_orig(
+                change_points, _ = compute_change_points_orig(
                     values,
                     max_pvalue=options.max_pvalue,
                 )
+                result[metric] = change_points
             else:
                 change_points, weak_cps = compute_change_points(
                     values,
@@ -238,20 +241,18 @@ class AnalyzedSeries:
                     max_pvalue=options.max_pvalue,
                     min_magnitude=options.min_magnitude,
                 )
-            result[metric] = []
-            for c in change_points:
-                result[metric].append(
-                    ChangePoint(
-                        index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                for c in weak_cps:
+                    weak_change_points[metric].append(
+                        ChangePoint(
+                            index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                        )
                     )
-                )
-            weak_change_points[metric] = []
-            for c in weak_cps:
-                weak_change_points[metric].append(
-                    ChangePoint(
-                        index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                for c in change_points:
+                    result[metric].append(
+                        ChangePoint(
+                            index=c.index, time=series.time[c.index], metric=metric, stats=c.stats
+                        )
                     )
-                )
         # If you got an exception and are wondering about the next row...
         # weak_cps is an optimization which you can ignore
         return result, weak_change_points
