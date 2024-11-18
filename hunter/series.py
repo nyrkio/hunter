@@ -499,6 +499,8 @@ class AnalyzedSeries:
 
         if "change_points_timestamp" in analyzed_json.keys():
             analyzed_series.change_points_timestamp = analyzed_json["change_points_timestamp"]
+            self.change_points_by_time = self.__group_change_points_by_time(self.__series, self.change_points)
+
         return analyzed_series
 
 
