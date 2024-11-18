@@ -212,9 +212,7 @@ class AnalyzedSeries:
         else:
             cp, weak_cps = self.__compute_change_points(series, options)
             self.change_points = cp
-
-        self.weak_change_points = weak_cps
-
+            self.weak_change_points = weak_cps
         self.change_points_by_time = self.__group_change_points_by_time(series, self.change_points)
 
     @staticmethod
