@@ -254,7 +254,7 @@ def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001,
         for c in old_cp:
             if c.index < max_start:
                 start = c.index
-        for s in range(0,len(series),step):
+        for s in range(0, len(series), step):
             if s < max_start and start < s:
                 start = s
 
@@ -276,7 +276,6 @@ def split(series: np.array, window_len: int = 30, max_pvalue: float = 0.001,
 
     window_endpoints = [0] + indexes + [len(series)]
     return [tester.change_point(i, series, window_endpoints) for i in indexes]
-
 
 
 def compute_change_points_orig(series: np.array, max_pvalue: float = 0.001) -> List[ChangePoint]:

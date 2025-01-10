@@ -55,6 +55,7 @@ class Metric:
             "unit": self.unit
         }
 
+
 @dataclass
 class ChangePoint:
     """A change-point for a single metric"""
@@ -89,33 +90,33 @@ class ChangePoint:
         return self.stats.pvalue
 
     def to_json(self, rounded=True):
-            if rounded:
-                return {
-                    "metric": self.metric,
-                    "index": int(self.index),
-                    "time": self.time,
-                    "forward_change_percent": f"{self.forward_change_percent():.0f}",
-                    "magnitude": f"{self.magnitude():-0f}",
-                    "mean_before": f"{self.mean_before():-0f}",
-                    "stddev_before": f"{self.stddev_before():-0f}",
-                    "mean_after": f"{self.mean_after():-0f}",
-                    "stddev_after": f"{self.stddev_after():-0f}",
-                    "pvalue": f"{self.pvalue():-0f}",
-                }
+        if rounded:
+            return {
+                "metric": self.metric,
+                "index": int(self.index),
+                "time": self.time,
+                "forward_change_percent": f"{self.forward_change_percent():.0f}",
+                "magnitude": f"{self.magnitude():-0f}",
+                "mean_before": f"{self.mean_before():-0f}",
+                "stddev_before": f"{self.stddev_before():-0f}",
+                "mean_after": f"{self.mean_after():-0f}",
+                "stddev_after": f"{self.stddev_after():-0f}",
+                "pvalue": f"{self.pvalue():-0f}",
+            }
 
-            else:
-                return {
-                    "metric": self.metric,
-                    "index": int(self.index),
-                    "time": self.time,
-                    "forward_change_percent": self.forward_change_percent(),
-                    "magnitude": self.magnitude(),
-                    "mean_before": self.mean_before(),
-                    "stddev_before": self.stddev_before(),
-                    "mean_after": self.mean_after(),
-                    "stddev_after": self.stddev_after(),
-                    "pvalue": self.pvalue(),
-                }
+        else:
+            return {
+                "metric": self.metric,
+                "index": int(self.index),
+                "time": self.time,
+                "forward_change_percent": self.forward_change_percent(),
+                "magnitude": self.magnitude(),
+                "mean_before": self.mean_before(),
+                "stddev_before": self.stddev_before(),
+                "mean_after": self.mean_after(),
+                "stddev_after": self.stddev_after(),
+                "pvalue": self.pvalue(),
+            }
 
 
 @dataclass
@@ -346,7 +347,7 @@ class AnalyzedSeries:
         for m in self.__series.metrics.keys():
             if m in new_data.keys():
                 self.__series.data[m] += new_data[m]
-        for k,v in attributes.items():
+        for k, v in attributes.items():
             self.__series.attributes[k].append(v)
 
         result = {}
@@ -363,7 +364,7 @@ class AnalyzedSeries:
                 max_pvalue=self.options.max_pvalue,
                 min_magnitude=self.options.min_magnitude,
                 new_data=len(new_data[metric]),
-                old_weak_cp=self.weak_change_points.get(metric,[])
+                old_weak_cp=self.weak_change_points.get(metric, [])
             )
             result[metric] = []
             for c in change_points:
@@ -389,7 +390,6 @@ class AnalyzedSeries:
             self.weak_change_points[metric] = weak_change_points[metric]
         self.change_points_by_time = self.__group_change_points_by_time(self.__series, self.change_points)
         return result, weak_change_points
-
 
     def test_name(self) -> str:
         return self.__series.test_name
@@ -452,7 +452,7 @@ class AnalyzedSeries:
         new_metrics = {}
 
         for metric_name, unit in analyzed_json["metrics"].items():
-            new_metrics[metric_name]=Metric(None,None,unit)
+            new_metrics[metric_name] = Metric(None, None, unit)
 
         new_series = Series(
             analyzed_json["test_name"],
@@ -471,7 +471,7 @@ class AnalyzedSeries:
 
         new_change_points = {}
         for metric, change_points in analyzed_json["change_points"].items():
-            new_list=list()
+            new_list = list()
             for cp in change_points:
                 stat = ComparativeStats(cp["mean_before"], cp["mean_after"], cp["stddev_before"],
                                         cp["stddev_after"], cp["pvalue"])
@@ -483,8 +483,8 @@ class AnalyzedSeries:
             new_change_points[metric] = new_list
 
         new_weak_change_points = {}
-        for metric, change_points in analyzed_json.get("weak_change_points",{}).items():
-            new_list=list()
+        for metric, change_points in analyzed_json.get("weak_change_points", {}).items():
+            new_list = list()
             for cp in change_points:
                 stat = ComparativeStats(cp["mean_before"], cp["mean_after"], cp["stddev_before"],
                                         cp["stddev_after"], cp["pvalue"])
@@ -495,7 +495,6 @@ class AnalyzedSeries:
                 )
             new_weak_change_points[metric] = new_list
 
-
         analyzed_series = cls(new_series, new_options, new_change_points)
         analyzed_series.weak_change_points = new_weak_change_points
 
@@ -504,7 +503,6 @@ class AnalyzedSeries:
             analyzed_series.change_points_by_time = AnalyzedSeries.__group_change_points_by_time(analyzed_series.__series, analyzed_series.change_points)
 
         return analyzed_series
-
 
 
 @dataclass

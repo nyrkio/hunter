@@ -53,6 +53,7 @@ def test_change_point_min_magnitude():
                 change.magnitude() >= options.min_magnitude
             ), f"All change points must have magnitude greater than {options.min_magnitude}"
 
+
 # Divide by zero is only a RuntimeWarning, but for testing we want to make sure it's a failure
 @pytest.mark.filterwarnings("error")
 def test_div_by_zero():
@@ -73,6 +74,7 @@ def test_div_by_zero():
     assert cpjson
     assert len(change_points) == 2
     assert change_points[0].index == 3
+
 
 def test_change_point_detection_performance():
     timestamps = range(0, 90)  # 3 months of data
@@ -189,20 +191,21 @@ def test_incremental_hunter():
     )
 
     analyzed_series = test.analyze()
-    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    analyzed_series.append(time=[len(time)], new_data={"series1": [0.5], "series2": [1.97]}, attributes={})
     change_points = analyzed_series.change_points
     assert [c.index for c in change_points["series1"]] == [6]
     assert [c.index for c in change_points["series2"]] == [4]
 
-    analyzed_series.append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    analyzed_series.append(time=[len(time)], new_data={"series1": [0.51]}, attributes={})
     change_points = analyzed_series.change_points
     assert [c.index for c in change_points["series1"]] == [6]
     assert [c.index for c in change_points["series2"]] == [4]
 
-    analyzed_series.append(time=[len(time)], new_data={"series2":[33.33, 46.46]}, attributes= {})
+    analyzed_series.append(time=[len(time)], new_data={"series2": [33.33, 46.46]}, attributes={})
     change_points = analyzed_series.change_points
     assert [c.index for c in change_points["series1"]] == [6]
-    assert [c.index for c in change_points["series2"]] == [4,12]
+    assert [c.index for c in change_points["series2"]] == [4, 12]
+
 
 def test_validate():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
@@ -227,20 +230,21 @@ def test_validate():
 
     analyzed_series_fail = test_fail.analyze()
     analyzed_series_fail.change_points = None
-    err = analyzed_series_fail._validate_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    err = analyzed_series_fail._validate_append(time=[len(time)], new_data={"series1": [0.51]}, attributes={})
     assert isinstance(err, RuntimeError)
 
     analyzed_series = test.analyze()
-    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    analyzed_series.append(time=[len(time)], new_data={"series1": [0.5], "series2": [1.97]}, attributes={})
 
-    err = analyzed_series._validate_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    err = analyzed_series._validate_append(time=[len(time)], new_data={"series1": [0.51]}, attributes={})
     assert err is None
 
-    err = analyzed_series._validate_append(time=[5], new_data={"series1":[0.51]}, attributes= {})
+    err = analyzed_series._validate_append(time=[5], new_data={"series1": [0.51]}, attributes={})
     assert isinstance(err, ValueError)
 
-    err = analyzed_series._validate_append(time=[len(time)], new_data={}, attributes= {})
+    err = analyzed_series._validate_append(time=[len(time)], new_data={}, attributes={})
     assert isinstance(err, ValueError)
+
 
 def test_can_append():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
@@ -256,13 +260,14 @@ def test_can_append():
     )
 
     analyzed_series = test.analyze()
-    analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
+    analyzed_series.append(time=[len(time)], new_data={"series1": [0.5], "series2": [1.97]}, attributes={})
 
-    can = analyzed_series.can_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
+    can = analyzed_series.can_append(time=[len(time)], new_data={"series1": [0.51]}, attributes={})
     assert can
 
-    can = analyzed_series.can_append(time=[5], new_data={"series1":[0.51]}, attributes= {})
+    can = analyzed_series.can_append(time=[5], new_data={"series1": [0.51]}, attributes={})
     assert not can
+
 
 def test_orig_edivisive():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
