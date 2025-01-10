@@ -1,7 +1,6 @@
-import numpy as np
-from signal_processing_algorithms.e_divisive.change_points import EDivisiveChangePoint
 
-from hunter.analysis import TTestSignificanceTester, compute_change_points, fill_missing, compute_change_points_orig
+from hunter.analysis import compute_change_points
+
 
 def _get_series():
     """

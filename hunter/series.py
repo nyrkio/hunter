@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import groupby
-from typing import Dict, Iterable, List, Optional, Any
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 
@@ -316,7 +316,7 @@ class AnalyzedSeries:
             return ValueError("time argument must be an array.")
         if not isinstance(new_data, dict):
             return ValueError("new_data argument must be a dict with metrics as key.")
-        if len(new_data.keys()) == 0 or len([v for v in [l for l in new_data.values()]]) == 0:
+        if len(new_data.keys()) == 0 or len([v for v in [vv for vv in new_data.values()]]) == 0:
             return ValueError("new_data argument doesn't contain any data")
         if not isinstance(attributes, dict):
             return ValueError("attributes must be a dict.")

@@ -1,5 +1,6 @@
 import time
 from random import random
+
 import pytest
 
 from hunter.series import AnalysisOptions, Metric, Series, compare
@@ -69,6 +70,7 @@ def test_div_by_zero():
     analyzed_series = test.analyze()
     change_points = analyzed_series.change_points_by_time
     cpjson = analyzed_series.to_json()
+    assert cpjson
     assert len(change_points) == 2
     assert change_points[0].index == 3
 
@@ -230,7 +232,6 @@ def test_validate():
 
     analyzed_series = test.analyze()
     analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
-    change_points = analyzed_series.change_points
 
     err = analyzed_series._validate_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
     assert err is None
@@ -256,13 +257,12 @@ def test_can_append():
 
     analyzed_series = test.analyze()
     analyzed_series.append(time=[len(time)], new_data={"series1":[0.5], "series2":[1.97]}, attributes= {})
-    change_points = analyzed_series.change_points
 
     can = analyzed_series.can_append(time=[len(time)], new_data={"series1":[0.51]}, attributes= {})
-    assert can == True
+    assert can
 
     can = analyzed_series.can_append(time=[5], new_data={"series1":[0.51]}, attributes= {})
-    assert can == False
+    assert not can
 
 def test_orig_edivisive():
     series_1 = [1.02, 0.95, 0.99, 1.00, 1.12, 0.90, 0.50, 0.51, 0.48, 0.48, 0.55]
