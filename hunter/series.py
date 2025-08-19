@@ -430,13 +430,19 @@ class AnalyzedSeries:
         for metric, datapoints in self.__series.data.items():
             data_json[metric] = [float(d) if d is not None else None for d in datapoints]
 
+        metrics = self.__series.metrics
+        json_metrics = {}
+        for k,v in metrics.items():
+            if isinstance(v, Metric):
+                json_metrics[k] = v.to_json()
+
         return {
             "test_name": self.test_name(),
             "time": self.time(),
             "change_points_timestamp": self.change_points_timestamp,
             "branch_name": self.branch_name(),
             "options": self.options.to_json(),
-            "metrics": self.__series.metrics,
+            "metrics": json_metrics,
             "attributes": self.__series.attributes,
             "data": self.__series.data,
             "change_points": change_points_json,
@@ -447,8 +453,15 @@ class AnalyzedSeries:
     def from_json(cls, analyzed_json):
         new_metrics = {}
 
-        for metric_name, unit in analyzed_json["metrics"].items():
-            new_metrics[metric_name]=Metric(None,None,unit)
+        for metric_name, obj in analyzed_json["metrics"].items():
+            if isinstance(obj, str):
+                unit = obj
+                new_metrics[metric_name]=Metric(None, None, unit)
+            else:
+                direction = obj.get("direction", None)
+                scale = obj.get("scale", None)
+                unit = obj.get("unit", None)
+                new_metrics[metric_name]=Metric(direction,scale,unit)
 
         new_series = Series(
             analyzed_json["test_name"],
@@ -491,6 +504,8 @@ class AnalyzedSeries:
                 )
             new_weak_change_points[metric] = new_list
 
+        for metric_name, metric_obj in analyzed_json.get("metrics", {}).items():
+            analyzed_json["metrics"][metric_name] = Metric(metric_obj.get("direction"), metric_obj.get("scale"), metric_obj.get("unit"))
 
         analyzed_series = cls(new_series, new_options, new_change_points)
         analyzed_series.weak_change_points = new_weak_change_points
