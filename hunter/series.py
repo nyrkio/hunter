@@ -505,7 +505,11 @@ class AnalyzedSeries:
             new_weak_change_points[metric] = new_list
 
         for metric_name, metric_obj in analyzed_json.get("metrics", {}).items():
-            analyzed_json["metrics"][metric_name] = Metric(metric_obj.get("direction"), metric_obj.get("scale"), metric_obj.get("unit"))
+            if isinstance(metric_obj, dict):
+                analyzed_json["metrics"][metric_name] = Metric(metric_obj.get("direction"), metric_obj.get("scale"), metric_obj.get("unit"))
+            elif isinstance(metric_obj, str):
+                analyzed_json["metrics"][metric_name] = Metric(None, None, metric_obj)
+
 
         analyzed_series = cls(new_series, new_options, new_change_points)
         analyzed_series.weak_change_points = new_weak_change_points
