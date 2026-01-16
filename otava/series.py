@@ -510,7 +510,7 @@ class AnalyzedSeries:
                 )
                 new_list.append(
                     ChangePoint(
-                        index=cp["index"], time=cp["time"], metric=cp["metric"], stats=stat
+                        index=cp["index"], qhat=-9.99, time=cp["time"], metric=cp["metric"], stats=stat
                     )
                 )
             new_change_points[metric] = new_list
@@ -526,9 +526,13 @@ class AnalyzedSeries:
                     std_2=cp["stddev_after"],
                     pvalue=cp["pvalue"],
                 )
+                # FIXME: Temporary hack: In nyrkio we haven't stored the qhat values of change points
+                # Nor do we expect such anywhere in this json code. Possibly the concept of weak change points
+                # goes away in the future. In that case this goes away too. If not, need to add support for the qhat value.
+                # Note: Also the plan is to get rid of these custom from/to_json() methods with pydantic or similar.
                 new_list.append(
                     ChangePoint(
-                        index=cp["index"], time=cp["time"], metric=cp["metric"], stats=stat
+                        index=cp["index"], qhat=-9.99, time=cp["time"], metric=cp["metric"], stats=stat
                     )
                 )
             new_weak_change_points[metric] = new_list
